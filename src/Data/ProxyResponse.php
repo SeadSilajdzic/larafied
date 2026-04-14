@@ -13,6 +13,7 @@ final readonly class ProxyResponse
         public float $durationMs,
         public string $contentType,
         public int $size,
+        public array $queries = [],
     ) {}
 
     public function toArray(): array
@@ -24,6 +25,7 @@ final readonly class ProxyResponse
             'duration_ms'  => $this->durationMs,
             'content_type' => $this->contentType,
             'size'         => $this->size,
+            'queries'      => $this->queries,
         ];
     }
 }

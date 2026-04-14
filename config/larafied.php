@@ -91,6 +91,18 @@ return [
     | Supports fnmatch() wildcards.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Allow Private Hosts
+    |--------------------------------------------------------------------------
+    |
+    | When true, the SSRF guard allows requests to private/local IP ranges
+    | (127.x.x.x, 192.168.x.x, .test domains, etc.).
+    | Safe to enable locally — the package is already restricted to local env.
+    |
+    */
+    'allow_private_hosts' => env('LARAFIED_ALLOW_PRIVATE_HOSTS', true),
+
     'exclude_routes' => [
         'larafied.*',
         'debugbar.*',
@@ -102,6 +114,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Route Filters
+    |--------------------------------------------------------------------------
+    |
+    | Restrict which routes appear in the scanner.
+    |
+    | only_middleware: show only routes that have at least one of these middleware.
+    |   Example: ['api'] — hides all web/HTML routes, shows only API routes.
+    |
+    | only_prefix: show only routes whose URI starts with one of these prefixes.
+    |   Example: ['api', 'v1'] — shows /api/* and /v1/* routes only.
+    |
+    | Leave both arrays empty to show all routes (default behaviour).
+    |
+    */
+    'route_filters' => [
+        'only_middleware' => [],
+        'only_prefix'    => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Title
     |--------------------------------------------------------------------------
     |
@@ -109,5 +142,27 @@ return [
     |
     */
     'title' => env('LARAFIED_TITLE', 'Larafied'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Network Monitor
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, the NetworkMonitorMiddleware captures every incoming HTTP
+    | request and response so you can inspect them live in the Larafied UI.
+    |
+    | To enable, set LARAFIED_NETWORK_MONITOR=true in your .env, then add
+    | \Larafied\Http\Middleware\NetworkMonitorMiddleware::class to your
+    | application middleware stack (bootstrap/app.php or Http/Kernel.php).
+    |
+    | max_body_size: Maximum bytes to store per request/response body (default 4 KB).
+    | max_events:   Maximum events kept in the database (oldest are pruned).
+    |
+    */
+    'network_monitor' => [
+        'enabled'       => env('LARAFIED_NETWORK_MONITOR', false),
+        'max_body_size' => (int) env('LARAFIED_NETWORK_BODY_SIZE', 4096),
+        'max_events'    => (int) env('LARAFIED_NETWORK_MAX_EVENTS', 500),
+    ],
 
 ];

@@ -21,5 +21,6 @@ abstract class TestCase extends OrchestraTestCase
         $app['config']->set('app.env', 'local');
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
         $app['config']->set('larafied.allowed_environments', ['local']);
+        $app['config']->set('larafied.allow_private_hosts', false);
     }
 }

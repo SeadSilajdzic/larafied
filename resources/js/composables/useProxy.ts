@@ -12,6 +12,7 @@ interface ProxySendParams {
     url: string
     headers?: Record<string, string>
     body?: string
+    debug?: boolean
 }
 
 function isProxyError(result: unknown): result is ProxyError {
@@ -44,5 +45,10 @@ export function useProxy() {
         }
     }
 
-    return { response, sending, error, send }
+    function clear(): void {
+        response.value = null
+        error.value    = null
+    }
+
+    return { response, sending, error, send, clear }
 }

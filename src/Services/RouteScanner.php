@@ -13,12 +13,15 @@ final class RouteScanner
     public function __construct(
         private readonly Router $router,
         private readonly array $excludePatterns = [],
+        private readonly array $onlyMiddleware = [],
+        private readonly array $onlyPrefix = [],
     ) {}
 
     public function scan(): Collection
     {
         return collect($this->router->getRoutes()->getRoutes())
             ->reject(fn (Route $route) => $this->isExcluded($route))
+            ->filter(fn (Route $route) => $this->isIncluded($route))
             ->map(fn (Route $route) => $this->toArray($route))
             ->groupBy('group')
             ->map(fn (Collection $routes, string $group) => [
@@ -64,6 +67,43 @@ final class RouteScanner
         }
 
         return $action;
+    }
+
+    private function isIncluded(Route $route): bool
+    {
+        if ($this->onlyMiddleware !== []) {
+            $routeMiddleware = $route->middleware();
+            $matched = false;
+            foreach ($this->onlyMiddleware as $required) {
+                foreach ($routeMiddleware as $m) {
+                    // Match both 'api' and 'api:*' style middleware aliases
+                    if ($m === $required || str_starts_with($m, $required . ':')) {
+                        $matched = true;
+                        break 2;
+                    }
+                }
+            }
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        if ($this->onlyPrefix !== []) {
+            $uri = ltrim($route->uri(), '/');
+            $matched = false;
+            foreach ($this->onlyPrefix as $prefix) {
+                $prefix = ltrim($prefix, '/');
+                if ($uri === $prefix || str_starts_with($uri, $prefix . '/')) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function isExcluded(Route $route): bool

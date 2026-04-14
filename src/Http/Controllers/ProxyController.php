@@ -6,17 +6,34 @@ namespace Larafied\Http\Controllers;
 
 use Larafied\Exceptions\SsrfException;
 use Larafied\Http\Requests\ProxyRequest;
+use Larafied\Services\FeatureFlags;
 use Larafied\Services\RequestProxy;
+use Larafied\Storage\WorkspaceStorage;
 use Illuminate\Http\JsonResponse;
 
 final class ProxyController extends Controller
 {
-    public function __construct(private readonly RequestProxy $proxy) {}
+    public function __construct(
+        private readonly RequestProxy $proxy,
+        private readonly FeatureFlags $featureFlags,
+        private readonly WorkspaceStorage $storage,
+    ) {}
 
     public function send(ProxyRequest $request): JsonResponse
     {
+        $debug = $request->boolean('debug') && $this->featureFlags->isEnabled('query_log');
+
         try {
-            $response = $this->proxy->send($request);
+            $response = $this->proxy->send($request, $debug);
+
+            $this->storage->saveToHistory([
+                'method'      => $request->validated('method'),
+                'url'         => $request->validated('url'),
+                'headers'     => $request->validated('headers', []) ?? [],
+                'body'        => $request->validated('body'),
+                'status'      => $response->status,
+                'duration_ms' => $response->durationMs,
+            ]);
 
             return response()->json($response->toArray());
         } catch (SsrfException $e) {

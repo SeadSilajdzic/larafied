@@ -83,6 +83,73 @@ it('enforces free tier limit of 5 collections', function () {
         ->assertJsonPath('upgrade', true);
 });
 
+it('allows pro tier to exceed free limit', function () {
+    $storage = $this->app->make(\Larafied\Storage\WorkspaceStorage::class);
+
+    // Set up a pro-tier license cache
+    $storagePath = sys_get_temp_dir().'/pro-test-'.uniqid();
+    mkdir($storagePath, 0755, true);
+
+    $validator = new \Larafied\Services\LicenseValidator(
+        httpClient:      new \GuzzleHttp\Client(),
+        storagePath:     $storagePath,
+        licenseKey:      'AW-TEST-KEY',
+        cloudUrl:        'https://api.larafied.com',
+        gracePeriodDays: 7,
+    );
+    $validator->cache([
+        'key'          => 'AW-TEST-KEY',
+        'tier'         => 'pro',
+        'features'     => ['unlimited_collections'],
+        'expires_at'   => null,
+        'validated_at' => (new \DateTime())->format(\DateTime::ATOM),
+        'grace_until'  => null,
+    ]);
+
+    $this->app->instance(\Larafied\Services\LicenseValidator::class, $validator);
+    $this->app->instance(\Larafied\Services\FeatureFlags::class, new \Larafied\Services\FeatureFlags($validator));
+
+    foreach (range(1, 5) as $i) {
+        $storage->saveCollection(['name' => "Collection {$i}"]);
+    }
+
+    $this->postJson('/larafied/api/collections', ['name' => 'Collection 6'])
+        ->assertCreated();
+
+    @unlink($storagePath.DIRECTORY_SEPARATOR.'license.json');
+    @rmdir($storagePath);
+});
+
+it('bulk deletes multiple collections', function () {
+    $storage = $this->app->make(WorkspaceStorage::class);
+    $a = $storage->saveCollection(['name' => 'A']);
+    $b = $storage->saveCollection(['name' => 'B']);
+    $c = $storage->saveCollection(['name' => 'C']);
+
+    $this->deleteJson('/larafied/api/collections', ['ids' => [$a['id'], $b['id']]])
+        ->assertNoContent();
+
+    expect($storage->findCollection($a['id']))->toBeNull();
+    expect($storage->findCollection($b['id']))->toBeNull();
+    expect($storage->findCollection($c['id']))->not()->toBeNull();
+});
+
+it('bulk delete validates ids array', function () {
+    $this->deleteJson('/larafied/api/collections', [])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['ids']);
+});
+
+it('bulk delete silently skips non-existent ids', function () {
+    $storage = $this->app->make(WorkspaceStorage::class);
+    $a = $storage->saveCollection(['name' => 'A']);
+
+    $this->deleteJson('/larafied/api/collections', ['ids' => [$a['id'], 'nonexistent']])
+        ->assertNoContent();
+
+    expect($storage->findCollection($a['id']))->toBeNull();
+});
+
 it('is blocked in production environment', function () {
     $this->app['config']->set('app.env', 'production');
 

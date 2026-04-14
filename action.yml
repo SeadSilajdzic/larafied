@@ -1,0 +1,37 @@
+name: Larafied API Tests
+description: Run Larafied API tests via `php artisan larafied:test` and report results.
+author: Larafied
+
+inputs:
+  collection:
+    description: Name of the collection to run. Omit to run all collections.
+    required: false
+    default: ''
+  format:
+    description: Output format — "table" (default) or "junit" (for CI reporting).
+    required: false
+    default: table
+  working-directory:
+    description: Directory containing the Laravel project. Defaults to the repo root.
+    required: false
+    default: '.'
+
+outputs:
+  result:
+    description: Exit code of the test run — 0 means all passed.
+    value: ${{ steps.run.outputs.exit_code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run Larafied tests
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        ARGS="--format=${{ inputs.format }}"
+        if [ -n "${{ inputs.collection }}" ]; then
+          ARGS="$ARGS --collection=${{ inputs.collection }}"
+        fi
+        php artisan larafied:test $ARGS
+        echo "exit_code=$?" >> "$GITHUB_OUTPUT"

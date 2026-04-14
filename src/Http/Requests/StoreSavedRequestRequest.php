@@ -23,6 +23,7 @@ final class StoreSavedRequestRequest extends FormRequest
             'data.headers'    => ['nullable', 'array'],
             'data.body'       => ['nullable'],
             'data.query'      => ['nullable', 'array'],
+            'folder_id'       => ['nullable', 'string'],
             'sort_order'      => ['nullable', 'integer', 'min:0'],
         ];
     }

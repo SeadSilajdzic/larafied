@@ -114,6 +114,56 @@ it('returns 404 when deleting non-existent request', function () {
         ->assertNotFound();
 });
 
+it('deletes a saved request via standalone route', function () use (&$validPayload) {
+    $storage    = $this->app->make(WorkspaceStorage::class);
+    $collection = $storage->saveCollection(['name' => 'My API']);
+    $saved      = $storage->saveRequest([...$validPayload, 'collection_id' => $collection['id']]);
+
+    $this->deleteJson("/larafied/api/requests/{$saved['id']}")
+        ->assertNoContent();
+
+    expect($storage->findRequest($saved['id']))->toBeNull();
+});
+
+it('returns 404 on standalone delete for non-existent request', function () {
+    $this->deleteJson('/larafied/api/requests/nonexistent')
+        ->assertNotFound();
+});
+
+it('duplicates a saved request', function () use (&$validPayload) {
+    $storage    = $this->app->make(WorkspaceStorage::class);
+    $collection = $storage->saveCollection(['name' => 'My API']);
+    $saved      = $storage->saveRequest([...$validPayload, 'collection_id' => $collection['id']]);
+
+    $this->postJson("/larafied/api/requests/{$saved['id']}/duplicate")
+        ->assertCreated()
+        ->assertJsonPath('name', 'Copy of Get Users')
+        ->assertJsonPath('collection_id', $collection['id']);
+
+    expect($storage->requestsForCollection($collection['id']))->toHaveCount(2);
+});
+
+it('returns 404 when duplicating non-existent request', function () {
+    $this->postJson('/larafied/api/requests/nonexistent/duplicate')
+        ->assertNotFound();
+});
+
+it('duplicate preserves folder assignment', function () use (&$validPayload) {
+    $storage    = $this->app->make(WorkspaceStorage::class);
+    $collection = $storage->saveCollection(['name' => 'My API']);
+    $folder     = $storage->saveFolder(['collection_id' => $collection['id'], 'name' => 'Auth']);
+    $saved      = $storage->saveRequest([
+        ...$validPayload,
+        'collection_id' => $collection['id'],
+        'folder_id'     => $folder['id'],
+    ]);
+
+    $response = $this->postJson("/larafied/api/requests/{$saved['id']}/duplicate")
+        ->assertCreated();
+
+    expect($response->json('folder_id'))->toBe($folder['id']);
+});
+
 it('is blocked in production environment', function () {
     $this->app['config']->set('app.env', 'production');
 

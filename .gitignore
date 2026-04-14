@@ -1,0 +1,10 @@
+/vendor
+/node_modules
+/.phpunit.cache
+/.phpunit.result.cache
+/coverage
+/internal-docs
+storage/larafied/
+.env
+.DS_Store
+Thumbs.db

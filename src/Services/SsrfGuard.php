@@ -16,6 +16,10 @@ final class SsrfGuard
         '100.100.100.200',          // Alibaba Cloud metadata
     ];
 
+    public function __construct(
+        private readonly bool $allowPrivateHosts = false,
+    ) {}
+
     public function validate(string $url): void
     {
         $parsed = parse_url($url);
@@ -34,6 +38,10 @@ final class SsrfGuard
 
         if (in_array($host, self::BLOCKED_HOSTS, true)) {
             throw new SsrfException("Host is blocked: {$host}");
+        }
+
+        if ($this->allowPrivateHosts) {
+            return;
         }
 
         $ip = $this->resolveToIp($host);

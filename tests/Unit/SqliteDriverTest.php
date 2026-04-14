@@ -114,3 +114,57 @@ it('cascades delete requests when collection is deleted', function () {
 
     expect($this->driver->findRequest($request['id']))->toBeNull();
 });
+
+// History
+
+it('starts with empty history', function () {
+    expect($this->driver->getHistory())->toBeEmpty();
+});
+
+it('saves and retrieves a history entry', function () {
+    $entry = $this->driver->saveToHistory([
+        'method'      => 'GET',
+        'url'         => 'https://example.com/api/users',
+        'headers'     => ['Accept' => 'application/json'],
+        'body'        => null,
+        'status'      => 200,
+        'duration_ms' => 123.4,
+    ]);
+
+    expect($entry)->toHaveKeys(['id', 'method', 'url', 'headers', 'body', 'status', 'duration_ms', 'created_at'])
+        ->and($entry['method'])->toBe('GET')
+        ->and($entry['url'])->toBe('https://example.com/api/users')
+        ->and($entry['status'])->toBe(200)
+        ->and($entry['headers'])->toBe(['Accept' => 'application/json']);
+
+    expect($this->driver->getHistory())->toHaveCount(1);
+});
+
+it('returns history ordered newest first', function () {
+    $this->driver->saveToHistory(['method' => 'GET',  'url' => 'https://example.com/1', 'status' => 200]);
+    $this->driver->saveToHistory(['method' => 'POST', 'url' => 'https://example.com/2', 'status' => 201]);
+
+    $history = $this->driver->getHistory();
+
+    expect($history->first()['url'])->toBe('https://example.com/2')
+        ->and($history->last()['url'])->toBe('https://example.com/1');
+});
+
+it('trims history to 50 entries', function () {
+    foreach (range(1, 55) as $i) {
+        $this->driver->saveToHistory([
+            'method' => 'GET',
+            'url'    => "https://example.com/api/{$i}",
+            'status' => 200,
+        ]);
+    }
+
+    expect($this->driver->getHistory())->toHaveCount(50);
+});
+
+it('clears all history', function () {
+    $this->driver->saveToHistory(['method' => 'GET', 'url' => 'https://example.com', 'status' => 200]);
+    $this->driver->clearHistory();
+
+    expect($this->driver->getHistory())->toBeEmpty();
+});

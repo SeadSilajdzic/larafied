@@ -27,8 +27,12 @@ async function request<T>(method: string, path: string, data?: unknown): Promise
         body: data !== undefined ? JSON.stringify(data) : undefined,
     })
 
-    if (!response.ok && response.status !== 422) {
+    if (!response.ok && response.status !== 422 && response.status !== 403) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    if (response.status === 204) {
+        return undefined as T
     }
 
     return response.json() as Promise<T>
@@ -39,6 +43,6 @@ export function useApi() {
         get:  <T>(path: string)                     => request<T>('GET',    path),
         post: <T>(path: string, data?: unknown)     => request<T>('POST',   path, data),
         put:  <T>(path: string, data?: unknown)     => request<T>('PUT',    path, data),
-        del:  <T>(path: string)                     => request<T>('DELETE', path),
+        del:  <T>(path: string, data?: unknown)     => request<T>('DELETE', path, data),
     }
 }

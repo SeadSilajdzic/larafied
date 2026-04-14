@@ -67,3 +67,59 @@ it('assigns root group to routes without prefix', function () {
 
     expect($root)->not->toBeNull();
 });
+
+it('filters routes by only_middleware', function () {
+    $this->router->get('/api/users', fn () => '')->middleware('api')->name('api.users');
+    $this->router->get('/about', fn () => '')->middleware('web')->name('web.about');
+
+    $scanner = new RouteScanner(
+        router:          $this->router,
+        excludePatterns: [],
+        onlyMiddleware:  ['api'],
+    );
+
+    $routes = $scanner->scan()->flatMap(fn ($g) => $g['routes']);
+    $names  = collect($routes)->pluck('name')->all();
+
+    expect($names)->toContain('api.users')
+        ->and($names)->not->toContain('web.about');
+});
+
+it('filters routes by only_prefix', function () {
+    $this->router->get('/api/users', fn () => '')->name('api.users');
+    $this->router->get('/about', fn () => '')->name('web.about');
+    $this->router->get('/api/posts', fn () => '')->name('api.posts');
+
+    $scanner = new RouteScanner(
+        router:          $this->router,
+        excludePatterns: [],
+        onlyPrefix:      ['api'],
+    );
+
+    $routes = $scanner->scan()->flatMap(fn ($g) => $g['routes']);
+    $names  = collect($routes)->pluck('name')->all();
+
+    expect($names)->toContain('api.users')
+        ->and($names)->toContain('api.posts')
+        ->and($names)->not->toContain('web.about');
+});
+
+it('applies both middleware and prefix filters together', function () {
+    $this->router->get('/api/users', fn () => '')->middleware('api')->name('api.users');
+    $this->router->get('/api/admin', fn () => '')->middleware('web')->name('api.admin.web');
+    $this->router->get('/other', fn () => '')->middleware('api')->name('other.api');
+
+    $scanner = new RouteScanner(
+        router:          $this->router,
+        excludePatterns: [],
+        onlyMiddleware:  ['api'],
+        onlyPrefix:      ['api'],
+    );
+
+    $routes = $scanner->scan()->flatMap(fn ($g) => $g['routes']);
+    $names  = collect($routes)->pluck('name')->all();
+
+    expect($names)->toContain('api.users')
+        ->and($names)->not->toContain('api.admin.web')
+        ->and($names)->not->toContain('other.api');
+});
