@@ -69,7 +69,7 @@ return [
     | The URL of the Larafied cloud service for license validation and sync.
     |
     */
-    'cloud_url' => 'https://larafied.dev',
+    'cloud_url' => env('LARAFIED_CLOUD_URL', 'https://larafied.dev'),
 
     /*
     |--------------------------------------------------------------------------

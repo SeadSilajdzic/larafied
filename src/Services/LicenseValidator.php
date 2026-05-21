@@ -53,7 +53,12 @@ final class LicenseValidator
 
         } catch (LicenseException $e) {
             throw $e;
-        } catch (GuzzleException) {
+        } catch (GuzzleException $e) {
+            $this->logger->error('Larafied: license cloud request failed.', [
+                'message' => $e->getMessage(),
+                'url'     => $this->cloudUrl.'/api/v1/licenses/validate',
+            ]);
+
             return $this->handleCloudFailure($key);
         }
     }

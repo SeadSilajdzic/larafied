@@ -70,7 +70,7 @@ final class LarafiedServiceProvider extends ServiceProvider
                 httpClient:      new Client(),
                 storagePath:     storage_path('larafied'),
                 licenseKey:      $app['config']->get('larafied.license_key') ?? '',
-                cloudUrl:        $app['config']->get('larafied.cloud_url', 'https://api.larafied.com'),
+                cloudUrl:        $app['config']->get('larafied.cloud_url', 'https://larafied.dev'),
                 gracePeriodDays: (int) $app['config']->get('larafied.grace_period_days', 7),
                 logger:          $app->make(\Psr\Log\LoggerInterface::class),
             );
@@ -83,7 +83,7 @@ final class LarafiedServiceProvider extends ServiceProvider
                 httpClient:       new Client(),
                 storage:          $app->make(WorkspaceStorage::class),
                 licenseValidator: $app->make(LicenseValidator::class),
-                cloudUrl:         (string) $app['config']->get('larafied.cloud_url', 'https://api.larafied.com'),
+                cloudUrl:         (string) $app['config']->get('larafied.cloud_url', 'https://larafied.dev'),
             );
         });
 
