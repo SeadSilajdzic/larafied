@@ -111,6 +111,16 @@ export interface QueryLogEntry {
     time_ms: number
 }
 
+export interface SqlColumn {
+    name: string
+    type: string
+}
+
+export interface SqlTable {
+    name:    string
+    columns: SqlColumn[]
+}
+
 export interface SqlResult {
     rows: Record<string, unknown>[]
     count: number

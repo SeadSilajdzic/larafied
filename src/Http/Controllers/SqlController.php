@@ -7,6 +7,7 @@ namespace Larafied\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Larafied\Services\FeatureFlags;
 
 final class SqlController extends Controller
@@ -46,6 +47,43 @@ final class SqlController extends Controller
                 'duration_ms' => $ms,
                 'connection'  => $db->getName(),
             ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function tables(Request $request): JsonResponse
+    {
+        if (! $this->featureFlags->isEnabled('sql_console')) {
+            return response()->json(['error' => 'SQL Console requires a Pro license.', 'upgrade' => true], 403);
+        }
+
+        $validated = $request->validate([
+            'connection' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        try {
+            $conn   = $validated['connection'] ?? config('database.default');
+            $db     = DB::connection($conn);
+            $dbName = $db->getDatabaseName();
+            $schema = Schema::connection($conn);
+            $tables = [];
+
+            foreach ($schema->getTables() as $table) {
+                if (($table['schema'] ?? $dbName) !== $dbName) {
+                    continue;
+                }
+
+                $name     = $table['name'];
+                $columns  = array_map(
+                    fn ($col) => ['name' => $col['name'], 'type' => $col['type_name']],
+                    $schema->getColumns($name),
+                );
+
+                $tables[] = ['name' => $name, 'columns' => $columns];
+            }
+
+            return response()->json(['tables' => $tables, 'database' => $dbName]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }

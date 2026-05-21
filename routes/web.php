@@ -98,6 +98,9 @@ Route::prefix('api')->name('larafied.api.')
     Route::post('sql', [SqlController::class, 'execute'])
         ->name('sql.execute');
 
+    Route::get('sql/tables', [SqlController::class, 'tables'])
+        ->name('sql.tables');
+
     Route::get('history', [HistoryController::class, 'index'])->name('history.index');
     Route::delete('history', [HistoryController::class, 'destroy'])->name('history.destroy');
 

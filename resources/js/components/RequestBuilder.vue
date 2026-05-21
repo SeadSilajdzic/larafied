@@ -5,6 +5,7 @@ import Prism from 'prismjs'
 import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-graphql'
 import 'prismjs/components/prism-sql'
+import SqlSidebar from './SqlSidebar.vue'
 import type { ActiveRequest, AuthType } from '../types'
 
 type BodyType = 'json' | 'raw' | 'graphql' | 'sql'
@@ -69,6 +70,7 @@ const showGqlVars  = ref(false)
 
 // Template refs for scroll sync
 const bodyPre      = ref<HTMLPreElement | null>(null)
+const bodyTextarea = ref<HTMLTextAreaElement | null>(null)
 const gqlVarsPre   = ref<HTMLPreElement | null>(null)
 
 const FEATURE_FOR_BODY_TYPE: Partial<Record<BodyType, string>> = {
@@ -293,6 +295,15 @@ async function applyTextareaEdit(
     await nextTick()
     textarea.selectionStart = newStart
     textarea.selectionEnd   = newEnd
+}
+
+async function insertAtCursor(text: string): Promise<void> {
+    const ta = bodyTextarea.value
+    if (!ta) return
+    const { selectionStart: s, selectionEnd: e, value } = ta
+    const newValue = value.substring(0, s) + text + value.substring(e)
+    await applyTextareaEdit(ta, newValue, s + text.length, s + text.length)
+    ta.focus()
 }
 
 async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
@@ -798,7 +809,15 @@ async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
         </div>
 
         <!-- Body tab -->
-        <div v-if="activeTab === 'body'" class="flex flex-col px-3 py-2">
+        <div v-if="activeTab === 'body'" class="flex flex-1 overflow-hidden min-h-0">
+
+            <!-- SQL table sidebar -->
+            <SqlSidebar
+                v-if="bodyType === 'sql'"
+                @insert="insertAtCursor"
+            />
+
+            <div class="flex flex-col flex-1 px-3 py-2 overflow-y-auto min-h-0">
 
             <!-- Body type selector — segmented control -->
             <div class="flex items-center mb-2 self-start bg-gray-950 rounded border border-gray-800 p-0.5 gap-0.5">
@@ -837,6 +856,7 @@ async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
                 />
                 <!-- Transparent textarea — caret and selection visible, text transparent -->
                 <textarea
+                    ref="bodyTextarea"
                     v-model="request.body"
                     :placeholder="bodyType === 'json' ? JSON_PLACEHOLDER : bodyType === 'graphql' ? GQL_PLACEHOLDER : bodyType === 'sql' ? SQL_PLACEHOLDER : 'Request body…'"
                     class="editor-textarea absolute inset-0 w-full h-full"
@@ -891,6 +911,8 @@ async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
                     />
                 </div>
             </template>
+        </div>
+
         </div>
     </div>
 </template>
