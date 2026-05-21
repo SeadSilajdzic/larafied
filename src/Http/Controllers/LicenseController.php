@@ -42,7 +42,7 @@ final class LicenseController extends Controller
 
             return response()->json([
                 'tier'         => $result['tier'],
-                'features'     => $result['features'],
+                'features'     => $this->featureFlags->features(),
                 'validated_at' => $result['validated_at'],
                 'grace_until'  => $result['grace_until'],
             ]);
