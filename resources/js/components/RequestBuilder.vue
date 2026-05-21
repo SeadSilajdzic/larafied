@@ -16,6 +16,7 @@ const props = defineProps<{
     bodyType: BodyType
     features: string[]
     envVars?: Record<string, string>
+    sqlBody?: string
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +25,7 @@ const emit = defineEmits<{
     sendGraphql:        [body: string]
     'update:bodyType':  [val: BodyType]
     'update:queryLog':  [val: boolean]
+    'update:sqlBody':   [val: string]
     upgrade:            []
 }>()
 
@@ -84,11 +86,17 @@ function switchBodyType(newType: BodyType): void {
         emit('upgrade')
         return
     }
-    // Save current content into its buffer
-    bodyContents.value[props.bodyType] = props.request.body
-    // Restore the new mode's buffer
-    props.request.body = bodyContents.value[newType]
-    // GraphQL is always POST
+    if (props.bodyType !== 'sql' && newType !== 'sql') {
+        // Both non-SQL: save/restore body content via local buffer
+        bodyContents.value[props.bodyType] = props.request.body
+        props.request.body = bodyContents.value[newType]
+    } else if (props.bodyType !== 'sql' && newType === 'sql') {
+        // Switching TO sql: save current body, SQL content is managed by parent via sqlBody prop
+        bodyContents.value[props.bodyType] = props.request.body
+    } else if (props.bodyType === 'sql' && newType !== 'sql') {
+        // Switching FROM sql: restore the non-SQL body from the local buffer
+        props.request.body = bodyContents.value[newType]
+    }
     if (newType === 'graphql' && props.request.method === 'GET') {
         props.request.method = 'POST'
     }
@@ -167,17 +175,18 @@ function escapeHtml(str: string): string {
 }
 
 const highlightedBody = computed(() => {
-    if (!props.request.body) return ''
+    const body = props.bodyType === 'sql' ? (props.sqlBody ?? '') : props.request.body
+    if (!body) return ''
     if (props.bodyType === 'json') {
-        try { return Prism.highlight(props.request.body, Prism.languages.json, 'json') } catch { /* fall through */ }
+        try { return Prism.highlight(body, Prism.languages.json, 'json') } catch { /* fall through */ }
     }
     if (props.bodyType === 'graphql') {
-        try { return Prism.highlight(props.request.body, Prism.languages.graphql, 'graphql') } catch { /* fall through */ }
+        try { return Prism.highlight(body, Prism.languages.graphql, 'graphql') } catch { /* fall through */ }
     }
     if (props.bodyType === 'sql') {
-        try { return Prism.highlight(props.request.body, Prism.languages.sql, 'sql') } catch { /* fall through */ }
+        try { return Prism.highlight(body, Prism.languages.sql, 'sql') } catch { /* fall through */ }
     }
-    return escapeHtml(props.request.body)
+    return escapeHtml(body)
 })
 
 const highlightedGqlVars = computed(() => {
@@ -289,8 +298,12 @@ async function applyTextareaEdit(
     newStart: number,
     newEnd: number,
 ): Promise<void> {
-    textarea.value     = newValue
-    props.request.body = newValue
+    textarea.value = newValue
+    if (props.bodyType === 'sql') {
+        emit('update:sqlBody', newValue)
+    } else {
+        props.request.body = newValue
+    }
     await nextTick()
     textarea.selectionStart = newStart
     textarea.selectionEnd   = newEnd
@@ -385,7 +398,7 @@ defineExpose({ insertAtCursor })
                 :class="sending
                     ? 'bg-indigo-700 text-indigo-200 cursor-wait'
                     : 'bg-indigo-600 hover:bg-indigo-500 text-white'"
-                :disabled="sending || !request.body.trim()"
+                :disabled="sending || !(sqlBody ?? '').trim()"
                 @click="handleSend"
             >
                 {{ sending ? 'Running…' : 'Run' }}
@@ -845,18 +858,23 @@ defineExpose({ insertAtCursor })
                 <!-- Syntax-highlighted layer (always visible when there's content) -->
                 <pre
                     ref="bodyPre"
-                    v-show="request.body"
+                    v-show="bodyType === 'sql' ? (sqlBody ?? '') : request.body"
                     class="editor-pre absolute inset-0 m-0 overflow-auto pointer-events-none select-none"
                     v-html="highlightedBody"
                 />
                 <!-- Transparent textarea — caret and selection visible, text transparent -->
                 <textarea
                     ref="bodyTextarea"
-                    v-model="request.body"
+                    :value="bodyType === 'sql' ? (sqlBody ?? '') : request.body"
                     :placeholder="bodyType === 'json' ? JSON_PLACEHOLDER : bodyType === 'graphql' ? GQL_PLACEHOLDER : bodyType === 'sql' ? SQL_PLACEHOLDER : 'Request body…'"
                     class="editor-textarea absolute inset-0 w-full h-full"
                     spellcheck="false"
                     autocomplete="off"
+                    @input="(e) => {
+                        const val = (e.target as HTMLTextAreaElement).value
+                        if (bodyType === 'sql') emit('update:sqlBody', val)
+                        else request.body = val
+                    }"
                     @keydown="handleBodyKeydown"
                     @scroll="syncBodyScroll"
                 />

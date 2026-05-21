@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import CollectionsSidebar from './components/CollectionsSidebar.vue'
 import EnvironmentsPanel from './components/EnvironmentsPanel.vue'
 import HistorySidebar from './components/HistorySidebar.vue'
@@ -80,17 +80,13 @@ const sqlSending = ref(false)
 
 function switchSqlTab(id: string): void {
     if (id === activeSqlTabId.value) return
-    activeSqlTab.value.sql = request.body   // save current SQL before leaving
-    activeSqlTabId.value   = id
-    request.body           = activeSqlTab.value.sql
+    activeSqlTabId.value = id
 }
 
 function addSqlTab(): void {
-    activeSqlTab.value.sql = request.body   // save current before creating new
     const tab = createTab()
     sqlTabs.value.push(tab)
     activeSqlTabId.value = tab.id
-    request.body         = ''
 }
 
 function closeSqlTab(id: string): void {
@@ -108,15 +104,6 @@ function renameSqlTab(id: string, name: string): void {
     const tab = sqlTabs.value.find(t => t.id === id)
     if (tab) tab.name = name
 }
-
-// Sync request.body ↔ active tab when entering SQL mode
-watch(bodyType, (newType, oldType) => {
-    if (newType === 'sql') {
-        nextTick(() => { request.body = activeSqlTab.value.sql })
-    } else if (oldType === 'sql') {
-        activeSqlTab.value.sql = request.body
-    }
-})
 
 const scriptError = ref<string | null>(null)
 
@@ -235,9 +222,7 @@ function appendQueryParams(url: string, params: Record<string, string>): string 
 }
 
 async function handleSend(): Promise<void> {
-    activeSqlTab.value.result = null
-    activeSqlTab.value.error  = null
-    scriptError.value         = null
+    scriptError.value = null
 
     // Run pre-request script (Pro feature) — mutates a copy of the request state
     let scriptMethod  = request.method
@@ -322,9 +307,7 @@ async function handleSend(): Promise<void> {
 }
 
 async function handleSendGraphql(formattedBody: string): Promise<void> {
-    activeSqlTab.value.result = null
-    activeSqlTab.value.error  = null
-    scriptError.value         = null
+    scriptError.value = null
 
     let scriptUrl     = interpolateActive(request.url)
     let scriptHeaders = Object.fromEntries(
@@ -394,7 +377,6 @@ async function handleSendGraphql(formattedBody: string): Promise<void> {
 
 async function handleSendSql(): Promise<void> {
     const tab    = activeSqlTab.value
-    tab.sql      = request.body   // persist current editor content
     tab.result   = null
     tab.error    = null
 
@@ -403,7 +385,7 @@ async function handleSendSql(): Promise<void> {
 
     try {
         const api    = useApi()
-        const result = await api.post<SqlResult | { error: string }>('/sql', { sql: request.body })
+        const result = await api.post<SqlResult | { error: string }>('/sql', { sql: tab.sql })
 
         if ('error' in result) {
             tab.error = (result as { error: string }).error
@@ -730,11 +712,13 @@ async function handleSendSql(): Promise<void> {
                         :query-log="queryLog"
                         :features="features"
                         :env-vars="envVars"
+                        :sql-body="activeSqlTab.sql"
                         v-model:body-type="bodyType"
                         @send="handleSend"
                         @send-graphql="handleSendGraphql"
                         @send-sql="handleSendSql"
                         @update:query-log="queryLog = $event"
+                        @update:sql-body="(v) => { activeSqlTab.sql = v }"
                         @upgrade="showLicense = true"
                     />
                     <ResponseViewer
@@ -757,11 +741,13 @@ async function handleSendSql(): Promise<void> {
                             :query-log="queryLog"
                             :features="features"
                             :env-vars="envVars"
+                            :sql-body="activeSqlTab.sql"
                             v-model:body-type="bodyType"
                             @send="handleSend"
                             @send-graphql="handleSendGraphql"
                             @send-sql="handleSendSql"
                             @update:query-log="queryLog = $event"
+                            @update:sql-body="(v) => { activeSqlTab.sql = v }"
                             @upgrade="showLicense = true"
                         />
                     </div>
