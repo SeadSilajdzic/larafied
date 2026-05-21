@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import CollectionsSidebar from './components/CollectionsSidebar.vue'
 import EnvironmentsPanel from './components/EnvironmentsPanel.vue'
 import HistorySidebar from './components/HistorySidebar.vue'
@@ -8,6 +8,7 @@ import LicenseModal from './components/LicenseModal.vue'
 import RequestBuilder from './components/RequestBuilder.vue'
 import ResponseViewer from './components/ResponseViewer.vue'
 import SqlSidebar from './components/SqlSidebar.vue'
+import SqlTabBar from './components/SqlTabBar.vue'
 import RouteSidebar from './components/RouteSidebar.vue'
 import NetworkMonitor from './components/NetworkMonitor.vue'
 import WebSocketPanel from './components/WebSocketPanel.vue'
@@ -19,7 +20,7 @@ import { useSync } from './composables/useSync'
 import { interpolate } from './interpolate'
 import { runPreRequestScript } from './preRequest'
 import { evaluateAssertions } from './utilities/evaluateAssertions'
-import type { ActiveRequest, AssertionResult, LarafiedConfig, RequestData, SqlResult } from './types'
+import type { ActiveRequest, AssertionResult, LarafiedConfig, RequestData, SqlResult, SqlTab } from './types'
 import { defaultAuth } from './types'
 
 const props = defineProps<{ config: LarafiedConfig }>()
@@ -62,9 +63,61 @@ function handleSqlInsert(text: string): void {
     requestBuilderRef.value?.insertAtCursor(text)
 }
 
-const sqlResult  = ref<SqlResult | null>(null)
-const sqlError    = ref<string | null>(null)
-const sqlSending  = ref(false)
+// ── SQL tabs ──────────────────────────────────────────────────────────────────
+
+let tabCounter = 1
+function createTab(): SqlTab {
+    return { id: String(Date.now() + tabCounter++), name: `Query ${tabCounter - 1}`, sql: '', result: null, error: null }
+}
+
+const sqlTabs       = ref<SqlTab[]>([createTab()])
+const activeSqlTabId = ref(sqlTabs.value[0].id)
+const activeSqlTab   = computed(() => sqlTabs.value.find(t => t.id === activeSqlTabId.value) ?? sqlTabs.value[0])
+
+const sqlResult  = computed(() => activeSqlTab.value?.result ?? null)
+const sqlError   = computed(() => activeSqlTab.value?.error  ?? null)
+const sqlSending = ref(false)
+
+function switchSqlTab(id: string): void {
+    if (id === activeSqlTabId.value) return
+    activeSqlTab.value.sql = request.body   // save current SQL before leaving
+    activeSqlTabId.value   = id
+    request.body           = activeSqlTab.value.sql
+}
+
+function addSqlTab(): void {
+    activeSqlTab.value.sql = request.body   // save current before creating new
+    const tab = createTab()
+    sqlTabs.value.push(tab)
+    activeSqlTabId.value = tab.id
+    request.body         = ''
+}
+
+function closeSqlTab(id: string): void {
+    if (sqlTabs.value.length <= 1) return
+    const idx = sqlTabs.value.findIndex(t => t.id === id)
+    if (idx < 0) return
+    if (id === activeSqlTabId.value) {
+        const next = sqlTabs.value[idx > 0 ? idx - 1 : idx + 1]
+        switchSqlTab(next.id)
+    }
+    sqlTabs.value.splice(idx, 1)
+}
+
+function renameSqlTab(id: string, name: string): void {
+    const tab = sqlTabs.value.find(t => t.id === id)
+    if (tab) tab.name = name
+}
+
+// Sync request.body ↔ active tab when entering SQL mode
+watch(bodyType, (newType, oldType) => {
+    if (newType === 'sql') {
+        nextTick(() => { request.body = activeSqlTab.value.sql })
+    } else if (oldType === 'sql') {
+        activeSqlTab.value.sql = request.body
+    }
+})
+
 const scriptError = ref<string | null>(null)
 
 const { response, sending, error: proxyError, send, clear: clearProxy } = useProxy()
@@ -182,9 +235,9 @@ function appendQueryParams(url: string, params: Record<string, string>): string 
 }
 
 async function handleSend(): Promise<void> {
-    sqlResult.value   = null
-    sqlError.value    = null
-    scriptError.value = null
+    activeSqlTab.value.result = null
+    activeSqlTab.value.error  = null
+    scriptError.value         = null
 
     // Run pre-request script (Pro feature) — mutates a copy of the request state
     let scriptMethod  = request.method
@@ -269,9 +322,9 @@ async function handleSend(): Promise<void> {
 }
 
 async function handleSendGraphql(formattedBody: string): Promise<void> {
-    sqlResult.value   = null
-    sqlError.value    = null
-    scriptError.value = null
+    activeSqlTab.value.result = null
+    activeSqlTab.value.error  = null
+    scriptError.value         = null
 
     let scriptUrl     = interpolateActive(request.url)
     let scriptHeaders = Object.fromEntries(
@@ -340,9 +393,12 @@ async function handleSendGraphql(formattedBody: string): Promise<void> {
 }
 
 async function handleSendSql(): Promise<void> {
+    const tab    = activeSqlTab.value
+    tab.sql      = request.body   // persist current editor content
+    tab.result   = null
+    tab.error    = null
+
     clearProxy()
-    sqlResult.value  = null
-    sqlError.value   = null
     sqlSending.value = true
 
     try {
@@ -350,12 +406,12 @@ async function handleSendSql(): Promise<void> {
         const result = await api.post<SqlResult | { error: string }>('/sql', { sql: request.body })
 
         if ('error' in result) {
-            sqlError.value = (result as { error: string }).error
+            tab.error = (result as { error: string }).error
         } else {
-            sqlResult.value = result as SqlResult
+            tab.result = result as SqlResult
         }
     } catch (e) {
-        sqlError.value = e instanceof Error ? e.message : 'Query failed'
+        tab.error = e instanceof Error ? e.message : 'Query failed'
     } finally {
         sqlSending.value = false
     }
@@ -655,6 +711,17 @@ async function handleSendSql(): Promise<void> {
                 class="flex flex-1 overflow-hidden"
                 :class="layoutMode === 'side-by-side' ? 'flex-row' : 'flex-col'"
             >
+                <!-- SQL tab bar — spans full width of the content column -->
+                <SqlTabBar
+                    v-if="bodyType === 'sql'"
+                    :tabs="sqlTabs"
+                    :active-id="activeSqlTabId"
+                    @switch="switchSqlTab"
+                    @add="addSqlTab"
+                    @close="closeSqlTab"
+                    @rename="renameSqlTab"
+                />
+
                 <template v-if="layoutMode === 'stacked'">
                     <RequestBuilder
                         ref="requestBuilderRef"

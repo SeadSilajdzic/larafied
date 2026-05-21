@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-sql'
@@ -148,6 +148,18 @@ const sqlColumns = computed(() => {
     if (!props.sqlResult?.rows?.length) return []
     return Object.keys(props.sqlResult.rows[0])
 })
+
+const selectedRowIdx = ref<number | null>(null)
+const selectedRow    = computed(() =>
+    selectedRowIdx.value !== null ? (props.sqlResult?.rows[selectedRowIdx.value] ?? null) : null,
+)
+
+function toggleRow(idx: number): void {
+    selectedRowIdx.value = selectedRowIdx.value === idx ? null : idx
+}
+
+// Reset selection whenever the result changes (new query ran)
+watch(() => props.sqlResult, () => { selectedRowIdx.value = null })
 </script>
 
 <template>
@@ -205,41 +217,82 @@ const sqlColumns = computed(() => {
                 <span class="text-xs text-gray-600 truncate ml-auto font-mono">{{ sqlResult.connection }}</span>
             </div>
 
-            <!-- Table -->
-            <div class="flex-1 overflow-auto">
-                <div v-if="sqlResult.count === 0" class="flex items-center justify-center h-full text-gray-600 text-xs">
-                    Query returned no rows.
+            <!-- Table + optional row-detail sidebar -->
+            <div class="flex flex-1 overflow-hidden">
+
+                <!-- Table -->
+                <div class="flex-1 overflow-auto">
+                    <div v-if="sqlResult.count === 0" class="flex items-center justify-center h-full text-gray-600 text-xs">
+                        Query returned no rows.
+                    </div>
+                    <table v-else class="w-full text-xs border-collapse">
+                        <thead class="sticky top-0 bg-gray-900 z-10">
+                            <tr>
+                                <th
+                                    v-for="col in sqlColumns"
+                                    :key="col"
+                                    class="px-3 py-1.5 text-left font-mono text-indigo-400 border-b border-gray-800 whitespace-nowrap"
+                                >
+                                    {{ col }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(row, i) in sqlResult.rows"
+                                :key="i"
+                                class="border-b border-gray-800/50 cursor-pointer transition-colors"
+                                :class="selectedRowIdx === i
+                                    ? 'bg-indigo-900/25 hover:bg-indigo-900/35'
+                                    : 'hover:bg-gray-800/30'"
+                                @click="toggleRow(i)"
+                            >
+                                <td
+                                    v-for="col in sqlColumns"
+                                    :key="col"
+                                    class="px-3 py-1.5 font-mono text-gray-300 whitespace-nowrap max-w-xs truncate"
+                                    :title="String(row[col] ?? '')"
+                                >
+                                    <span v-if="row[col] === null" class="text-gray-600 italic">null</span>
+                                    <span v-else>{{ row[col] }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <table v-else class="w-full text-xs border-collapse">
-                    <thead class="sticky top-0 bg-gray-900 z-10">
-                        <tr>
-                            <th
-                                v-for="col in sqlColumns"
-                                :key="col"
-                                class="px-3 py-1.5 text-left font-mono text-indigo-400 border-b border-gray-800 whitespace-nowrap"
-                            >
-                                {{ col }}
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="(row, i) in sqlResult.rows"
-                            :key="i"
-                            class="border-b border-gray-800/50 hover:bg-gray-800/30"
+
+                <!-- Row detail panel -->
+                <div
+                    v-if="selectedRow"
+                    class="w-64 shrink-0 border-l border-gray-800 flex flex-col overflow-hidden"
+                >
+                    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-800 shrink-0">
+                        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide leading-none">Row detail</span>
+                        <button
+                            class="p-0.5 rounded text-gray-600 hover:text-gray-300 transition-colors"
+                            title="Close"
+                            @click="selectedRowIdx = null"
                         >
-                            <td
-                                v-for="col in sqlColumns"
-                                :key="col"
-                                class="px-3 py-1.5 font-mono text-gray-300 whitespace-nowrap max-w-xs truncate"
-                                :title="String(row[col] ?? '')"
-                            >
-                                <span v-if="row[col] === null" class="text-gray-600 italic">null</span>
-                                <span v-else>{{ row[col] }}</span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        <div
+                            v-for="col in sqlColumns"
+                            :key="col"
+                            class="px-3 py-2 border-b border-gray-800/50"
+                        >
+                            <div class="text-xs font-mono text-indigo-400 mb-0.5 truncate">{{ col }}</div>
+                            <div
+                                class="text-xs font-mono break-all leading-relaxed"
+                                :class="selectedRow[col] === null ? 'text-gray-600 italic' : 'text-gray-200'"
+                            >{{ selectedRow[col] === null ? 'null' : String(selectedRow[col]) }}</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </template>
 

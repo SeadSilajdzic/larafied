@@ -128,6 +128,14 @@ export interface SqlResult {
     connection: string
 }
 
+export interface SqlTab {
+    id:     string
+    name:   string
+    sql:    string
+    result: SqlResult | null
+    error:  string | null
+}
+
 export interface ProxyResponse {
     status: number
     headers: Record<string, string>
