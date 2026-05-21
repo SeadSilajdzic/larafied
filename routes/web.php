@@ -20,7 +20,11 @@ use Larafied\Http\Controllers\SqlController;
 use Illuminate\Support\Facades\Route;
 
 // Internal JSON API — consumed by the Vue SPA
-Route::prefix('api')->name('larafied.api.')->group(function () {
+// Excluded from CSRF: session is maintained via web middleware on the parent group,
+// but the SPA communicates over XHR without a CSRF token.
+Route::prefix('api')->name('larafied.api.')
+    ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class)
+    ->group(function () {
 
     Route::get('routes', [RouteController::class, 'index'])
         ->name('routes');
