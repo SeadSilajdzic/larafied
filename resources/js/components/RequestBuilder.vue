@@ -5,7 +5,6 @@ import Prism from 'prismjs'
 import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-graphql'
 import 'prismjs/components/prism-sql'
-import SqlSidebar from './SqlSidebar.vue'
 import type { ActiveRequest, AuthType } from '../types'
 
 type BodyType = 'json' | 'raw' | 'graphql' | 'sql'
@@ -367,6 +366,8 @@ async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
         }
     }
 }
+
+defineExpose({ insertAtCursor })
 </script>
 
 <template>
@@ -809,15 +810,9 @@ async function handleBodyKeydown(e: KeyboardEvent): Promise<void> {
         </div>
 
         <!-- Body tab -->
-        <div v-if="activeTab === 'body'" class="flex flex-1 overflow-hidden min-h-0">
+        <div v-if="activeTab === 'body'" class="flex">
 
-            <!-- SQL table sidebar -->
-            <SqlSidebar
-                v-if="bodyType === 'sql'"
-                @insert="insertAtCursor"
-            />
-
-            <div class="flex flex-col flex-1 px-3 py-2 overflow-y-auto min-h-0">
+            <div class="flex flex-col flex-1 px-3 py-2">
 
             <!-- Body type selector — segmented control -->
             <div class="flex items-center mb-2 self-start bg-gray-950 rounded border border-gray-800 p-0.5 gap-0.5">

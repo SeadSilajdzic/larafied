@@ -7,6 +7,7 @@ import LicenseBadge from './components/LicenseBadge.vue'
 import LicenseModal from './components/LicenseModal.vue'
 import RequestBuilder from './components/RequestBuilder.vue'
 import ResponseViewer from './components/ResponseViewer.vue'
+import SqlSidebar from './components/SqlSidebar.vue'
 import RouteSidebar from './components/RouteSidebar.vue'
 import NetworkMonitor from './components/NetworkMonitor.vue'
 import WebSocketPanel from './components/WebSocketPanel.vue'
@@ -53,8 +54,13 @@ const request = reactive<ActiveRequest>({
 
 const assertionResults = ref<AssertionResult[]>([])
 
-const bodyType   = ref<BodyType>('json')
-const queryLog   = ref(false)
+const bodyType          = ref<BodyType>('json')
+const queryLog          = ref(false)
+const requestBuilderRef = ref<InstanceType<typeof RequestBuilder> | null>(null)
+
+function handleSqlInsert(text: string): void {
+    requestBuilderRef.value?.insertAtCursor(text)
+}
 
 const sqlResult  = ref<SqlResult | null>(null)
 const sqlError    = ref<string | null>(null)
@@ -636,36 +642,22 @@ async function handleSendSql(): Promise<void> {
         <!-- ── Main panel ────────────────────────────────────────────────── -->
         <div
             class="flex flex-1 overflow-hidden"
-            :class="[graceWarning ? 'pt-8' : '', layoutMode === 'side-by-side' ? 'flex-row' : 'flex-col']"
+            :class="graceWarning ? 'pt-8' : ''"
         >
-            <template v-if="layoutMode === 'stacked'">
-                <RequestBuilder
-                    :request="request"
-                    :sending="isSending"
-                    :query-log="queryLog"
-                    :features="features"
-                    :env-vars="envVars"
-                    v-model:body-type="bodyType"
-                    @send="handleSend"
-                    @send-graphql="handleSendGraphql"
-                    @send-sql="handleSendSql"
-                    @update:query-log="queryLog = $event"
-                    @upgrade="showLicense = true"
-                />
-                <ResponseViewer
-                    :response="response"
-                    :error="proxyError"
-                    :sending="isSending"
-                    :sql-result="sqlResult"
-                    :sql-error="sqlError"
-                    :script-error="scriptError"
-                    :assertion-results="assertionResults"
-                />
-            </template>
+            <!-- SQL table sidebar — full height, only when SQL mode is active -->
+            <SqlSidebar
+                v-if="bodyType === 'sql'"
+                @insert="handleSqlInsert"
+            />
 
-            <template v-else>
-                <div class="flex flex-col w-1/2 border-r border-gray-800 overflow-hidden">
+            <!-- Request + Response column -->
+            <div
+                class="flex flex-1 overflow-hidden"
+                :class="layoutMode === 'side-by-side' ? 'flex-row' : 'flex-col'"
+            >
+                <template v-if="layoutMode === 'stacked'">
                     <RequestBuilder
+                        ref="requestBuilderRef"
                         :request="request"
                         :sending="isSending"
                         :query-log="queryLog"
@@ -678,8 +670,6 @@ async function handleSendSql(): Promise<void> {
                         @update:query-log="queryLog = $event"
                         @upgrade="showLicense = true"
                     />
-                </div>
-                <div class="flex flex-col w-1/2 overflow-hidden">
                     <ResponseViewer
                         :response="response"
                         :error="proxyError"
@@ -687,9 +677,39 @@ async function handleSendSql(): Promise<void> {
                         :sql-result="sqlResult"
                         :sql-error="sqlError"
                         :script-error="scriptError"
+                        :assertion-results="assertionResults"
                     />
-                </div>
-            </template>
+                </template>
+
+                <template v-else>
+                    <div class="flex flex-col w-1/2 border-r border-gray-800 overflow-hidden">
+                        <RequestBuilder
+                            ref="requestBuilderRef"
+                            :request="request"
+                            :sending="isSending"
+                            :query-log="queryLog"
+                            :features="features"
+                            :env-vars="envVars"
+                            v-model:body-type="bodyType"
+                            @send="handleSend"
+                            @send-graphql="handleSendGraphql"
+                            @send-sql="handleSendSql"
+                            @update:query-log="queryLog = $event"
+                            @upgrade="showLicense = true"
+                        />
+                    </div>
+                    <div class="flex flex-col w-1/2 overflow-hidden">
+                        <ResponseViewer
+                            :response="response"
+                            :error="proxyError"
+                            :sending="isSending"
+                            :sql-result="sqlResult"
+                            :sql-error="sqlError"
+                            :script-error="scriptError"
+                        />
+                    </div>
+                </template>
+            </div>
         </div>
 
         <!-- License modal -->

@@ -65,7 +65,7 @@ onMounted(fetchTables)
 </script>
 
 <template>
-    <div class="flex flex-col w-52 shrink-0 border-r border-gray-800">
+    <div class="flex flex-col w-52 shrink-0 border-r border-gray-800 overflow-hidden">
 
         <!-- Header -->
         <div class="flex items-center justify-between px-2 py-2 border-b border-gray-800 shrink-0">
@@ -95,7 +95,7 @@ onMounted(fetchTables)
         </div>
 
         <!-- Table list — scrollable -->
-        <div class="overflow-y-auto pb-4" style="max-height: calc(100vh - 160px)">
+        <div class="flex-1 overflow-y-auto pb-4">
 
             <div v-if="loading" class="px-3 py-4 text-xs text-gray-600 text-center">
                 Loading…
